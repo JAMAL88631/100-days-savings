@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>100 Days Savings</title>
 
     <style>
@@ -12,7 +11,6 @@
             background: #f2f5f9;
             margin: 0;
             padding: 20px;
-            text-align: center;
         }
 
         .container {
@@ -24,18 +22,51 @@
             background: white;
             padding: 25px;
             border-radius: 20px;
-            margin-top: 30px;
+            margin-top: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
         h1 {
-            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 14px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 10px;
+            background: #2196f3;
+            color: white;
+            font-size: 16px;
+        }
+
+        .logout {
+            background: #555;
         }
 
         .amount {
-            font-size: 40px;
+            text-align: center;
+            font-size: 38px;
             font-weight: bold;
             margin: 20px 0;
+        }
+
+        .stat {
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin: 8px 0;
         }
 
         .progress {
@@ -50,21 +81,31 @@
             background: #2196f3;
             height: 100%;
             width: 0%;
-            transition: width 0.5s;
+            transition: width 0.4s;
         }
 
-        button {
+        .hidden {
+            display: none;
+        }
+
+        .history {
+            text-align: left;
             margin-top: 20px;
-            padding: 15px 25px;
-            border: none;
-            border-radius: 12px;
-            background: #2196f3;
-            color: white;
-            font-size: 17px;
         }
 
-        button:active {
-            transform: scale(0.97);
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .error {
+            color: #d32f2f;
+            margin-top: 10px;
+        }
+
+        .success {
+            color: #2e7d32;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -73,81 +114,397 @@
 
 <div class="container">
 
-    <div class="card">
+    <!-- LOGIN / REGISTER -->
+    <div class="card" id="authCard">
 
         <h1>💰 100 Days Savings</h1>
 
-        <p>KSh 50 each per day</p>
+        <p style="text-align:center;">
+            KSh 50 each per day
+        </p>
 
-        <div class="amount" id="amount">
+        <input
+            type="email"
+            id="email"
+            placeholder="Email address"
+        >
+
+        <input
+            type="password"
+            id="password"
+            placeholder="Password"
+        >
+
+        <button id="loginBtn">
+            🔐 Login
+        </button>
+
+        <button id="registerBtn">
+            👤 Create Account
+        </button>
+
+        <p id="authMessage"></p>
+
+    </div>
+
+
+    <!-- DASHBOARD -->
+    <div class="card hidden" id="dashboard">
+
+        <h1>🏦 My Savings</h1>
+
+        <p id="userEmail" style="text-align:center;"></p>
+
+        <div class="amount" id="myAmount">
             KSh 0
         </div>
 
-        <p id="day">
-            Day 0 / 100
-        </p>
+        <div class="stat">
+            👤 My savings: <strong id="personalTotal">KSh 0</strong>
+        </div>
 
-        <p>
-            Target: KSh 10,000
-        </p>
+        <div class="stat">
+            🤝 Combined savings: <strong id="combinedTotal">KSh 0</strong>
+        </div>
+
+        <div class="stat">
+            📅 Contributions: <strong id="myDays">0 / 100</strong>
+        </div>
+
+        <p>Overall progress</p>
 
         <div class="progress">
             <div class="progress-bar" id="progressBar"></div>
         </div>
 
-        <p id="percentage">
-            0% completed
-        </p>
+        <p id="percentage">0% completed</p>
 
-        <button onclick="saveMoney()">
-            ✅ I Saved KSh 50
+        <button id="saveBtn">
+            ✅ I Have Contributed KSh 50
         </button>
+
+        <button class="logout" id="logoutBtn">
+            🚪 Logout
+        </button>
+
+        <p id="saveMessage"></p>
+
+        <div class="history">
+            <h3>📜 My Contributions</h3>
+            <div id="historyList">
+                No contributions yet.
+            </div>
+        </div>
 
     </div>
 
 </div>
 
-<script>
 
-let saved = Number(localStorage.getItem("saved")) || 0;
-let day = Number(localStorage.getItem("day")) || 0;
+<script type="module">
 
-function updateScreen() {
+import {
+    initializeApp
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 
-    document.getElementById("amount").textContent =
-        "KSh " + saved.toLocaleString();
+import {
+    getAuth,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
-    document.getElementById("day").textContent =
-        "Day " + day + " / 100";
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    onSnapshot,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-    let percentage = (saved / 10000) * 100;
 
-    document.getElementById("progressBar").style.width =
-        percentage + "%";
+/* FIREBASE CONFIG */
 
-    document.getElementById("percentage").textContent =
-        percentage.toFixed(1) + "% completed";
-}
+const firebaseConfig = {
+    apiKey: "AIzaSyAXwG_9yyvhdt5kaNwuX3WNam4sDyyJPoA",
+    authDomain: "days-savings.firebaseapp.com",
+    projectId: "days-savings",
+    storageBucket: "days-savings.firebasestorage.app",
+    messagingSenderId: "761477630103",
+    appId: "1:761477630103:web:78c5fdd73029b9cdce41d2",
+    measurementId: "G-1MB8F98N1T"
+};
 
-function saveMoney() {
 
-    if (day >= 100) {
-        alert("🎉 You have completed the 100-day challenge!");
+/* INITIALIZE FIREBASE */
+
+const app = initializeApp(firebaseConfig);
+
+const auth = getAuth(app);
+
+const db = getFirestore(app);
+
+
+/* ELEMENTS */
+
+const authCard = document.getElementById("authCard");
+const dashboard = document.getElementById("dashboard");
+
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+
+const authMessage = document.getElementById("authMessage");
+const saveMessage = document.getElementById("saveMessage");
+
+const userEmail = document.getElementById("userEmail");
+
+const personalTotal = document.getElementById("personalTotal");
+const combinedTotal = document.getElementById("combinedTotal");
+const myDays = document.getElementById("myDays");
+
+const progressBar = document.getElementById("progressBar");
+const percentage = document.getElementById("percentage");
+
+const historyList = document.getElementById("historyList");
+
+
+/* CREATE ACCOUNT */
+
+document.getElementById("registerBtn").addEventListener("click", async () => {
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+        authMessage.textContent = "Please enter your email and password.";
+        authMessage.className = "error";
         return;
     }
 
-    saved = saved + 50;
-    day = day + 1;
+    try {
 
-    localStorage.setItem("saved", saved);
-    localStorage.setItem("day", day);
+        await createUserWithEmailAndPassword(
+            auth,
+            email,
+            password
+        );
 
-    updateScreen();
+        authMessage.textContent = "✅ Account created!";
+        authMessage.className = "success";
 
-    alert("✅ KSh 50 recorded!");
+    } catch (error) {
+
+        authMessage.textContent = error.message;
+        authMessage.className = "error";
+
+    }
+
+});
+
+
+/* LOGIN */
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+        authMessage.textContent = "Please enter your email and password.";
+        authMessage.className = "error";
+        return;
+    }
+
+    try {
+
+        await signInWithEmailAndPassword(
+            auth,
+            email,
+            password
+        );
+
+        authMessage.textContent = "";
+
+    } catch (error) {
+
+        authMessage.textContent = error.message;
+        authMessage.className = "error";
+
+    }
+
+});
+
+
+/* LOGOUT */
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+
+    await signOut(auth);
+
+});
+
+
+/* SAVE KSH 50 */
+
+document.getElementById("saveBtn").addEventListener("click", async () => {
+
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    try {
+
+        await addDoc(
+            collection(db, "contributions"),
+            {
+                uid: user.uid,
+                email: user.email,
+                amount: 50,
+                createdAt: serverTimestamp()
+            }
+        );
+
+        saveMessage.textContent =
+            "✅ KSh 50 contribution recorded.";
+
+        saveMessage.className = "success";
+
+    } catch (error) {
+
+        saveMessage.textContent =
+            "❌ " + error.message;
+
+        saveMessage.className = "error";
+
+    }
+
+});
+
+
+/* AUTH STATE */
+
+onAuthStateChanged(auth, (user) => {
+
+    if (user) {
+
+        authCard.classList.add("hidden");
+        dashboard.classList.remove("hidden");
+
+        userEmail.textContent =
+            "Logged in as " + user.email;
+
+        listenToContributions(user);
+
+    } else {
+
+        authCard.classList.remove("hidden");
+        dashboard.classList.add("hidden");
+
+    }
+
+});
+
+
+/* LOAD CONTRIBUTIONS */
+
+function listenToContributions(user) {
+
+    const contributionsQuery = query(
+        collection(db, "contributions"),
+        orderBy("createdAt", "desc")
+    );
+
+    onSnapshot(
+        contributionsQuery,
+        (snapshot) => {
+
+            let mine = 0;
+            let mineCount = 0;
+            let combined = 0;
+
+            let history = "";
+
+            snapshot.forEach((doc) => {
+
+                const data = doc.data();
+
+                combined += Number(data.amount) || 0;
+
+                if (data.uid === user.uid) {
+
+                    mine += Number(data.amount) || 0;
+                    mineCount++;
+
+                    let date = "";
+
+                    if (data.createdAt) {
+                        date =
+                            data.createdAt.toDate()
+                            .toLocaleString();
+                    }
+
+                    history += `
+                        <div class="history-item">
+                            💰 KSh ${data.amount}
+                            <br>
+                            <small>${date}</small>
+                        </div>
+                    `;
+                }
+
+            });
+
+
+            personalTotal.textContent =
+                "KSh " + mine.toLocaleString();
+
+            myAmount.textContent =
+                "KSh " + mine.toLocaleString();
+
+            combinedTotal.textContent =
+                "KSh " + combined.toLocaleString();
+
+            myDays.textContent =
+                mineCount + " / 100";
+
+
+            let progress =
+                (combined / 10000) * 100;
+
+            if (progress > 100) {
+                progress = 100;
+            }
+
+            progressBar.style.width =
+                progress + "%";
+
+            percentage.textContent =
+                progress.toFixed(1) + "% completed";
+
+
+            if (history) {
+                historyList.innerHTML = history;
+            } else {
+                historyList.textContent =
+                    "No contributions yet.";
+            }
+
+        },
+
+        (error) => {
+
+            saveMessage.textContent =
+                "Database error: " + error.message;
+
+            saveMessage.className = "error";
+
+        }
+    );
+
 }
-
-updateScreen();
 
 </script>
 
