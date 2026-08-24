@@ -96,9 +96,44 @@
 
         <p>Day 0 / 100</p>
 
-        <button>
-            ✅ I Saved KSh 50
-        </button>
+        <button onclick="saveMoney()">
+    ✅ I Saved KSh 50
+</button>
+
+<script>
+let saved = Number(localStorage.getItem("saved")) || 0;
+let day = Number(localStorage.getItem("day")) || 0;
+
+function updateScreen() {
+    document.querySelector(".amount").textContent =
+        "KSh " + saved.toLocaleString();
+
+    document.querySelector(".progress-bar").style.width =
+        (saved / 10000 * 100) + "%";
+
+    document.querySelector(".card p:nth-of-type(2)").textContent =
+        "Day " + day + " / 100";
+}
+
+function saveMoney() {
+    if (day >= 100) {
+        alert("🎉 Challenge completed!");
+        return;
+    }
+
+    saved += 50;
+    day++;
+
+    localStorage.setItem("saved", saved);
+    localStorage.setItem("day", day);
+
+    updateScreen();
+
+    alert("✅ KSh 50 recorded!");
+}
+
+updateScreen();
+</script>
 
     </div>
 
